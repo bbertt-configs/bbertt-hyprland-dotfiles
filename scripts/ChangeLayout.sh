@@ -1,24 +1,142 @@
 #!/usr/bin/env bash
-# /* ---- 💫 https://github.com/JaKooLit 💫 ---- */  ##
-# for changing Hyprland Layouts (Master or Dwindle) on the fly
+# ==================================================
+#  KoolDots (2026)
+#  Project URL: https://github.com/LinuxBeginnings
+#  License: GNU GPLv3
+#  SPDX-License-Identifier: GPL-3.0-or-later
+# ==================================================
+# for changing Hyprland Layouts (master, dwindle, scrolling, monocle) on the fly
 
 notif="$HOME/.config/swaync/images/ja.png"
 
-LAYOUT=$(hyprctl -j getoption general:layout | jq '.str' | sed 's/"//g')
+layouts=(master dwindle scrolling monocle)
+quiet_mode=0
 
-case $LAYOUT in
-"master")
-	hyprctl keyword general:layout dwindle
-	# SUPER+J/K are global and managed by KeybindsLayoutInit.sh; only manage SUPER+O here
-	hyprctl keyword bind SUPER,O,togglesplit
-  notify-send -e -u low -i "$notif" " Dwindle Layout"
-	;;
-"dwindle")
-	hyprctl keyword general:layout master
-	# Drop togglesplit binding on SUPER+O when switching back to master
-	hyprctl keyword unbind SUPER,O
-  notify-send -e -u low -i "$notif" " Master Layout"
-	;;
-*) ;;
+get_layout() {
+  hyprctl -j getoption general:layout | jq -r '.str'
+}
 
+set_hypr_layout() {
+  local target="$1"
+  local output
+
+  output="$(hyprctl keyword general:layout "$target" 2>&1)"
+  if grep -q "keyword can't work with non-legacy parsers" <<<"$output"; then
+    output="$(hyprctl eval "hl.config({ general = { layout = \"${target}\" } })" 2>&1)"
+  fi
+
+  if ! grep -q "^ok$" <<<"$output"; then
+    echo "$output" >&2
+    return 1
+  fi
+}
+
+hypr_keyword() {
+  hyprctl keyword "$@" >/dev/null 2>&1 || true
+}
+
+next_layout() {
+  local current="$1"
+  local i
+  for i in "${!layouts[@]}"; do
+    if [[ "${layouts[i]}" == "$current" ]]; then
+      echo "${layouts[((i + 1) % ${#layouts[@]})]}"
+      return
+    fi
+  done
+  echo "${layouts[0]}"
+}
+
+set_layout() {
+  local target="$1"
+
+  if ! set_hypr_layout "$target"; then
+    if [[ "$quiet_mode" -eq 0 ]]; then
+      notify-send -e -u critical -i "$notif" " Layout switch failed: $target"
+    fi
+    return 1
+  fi
+
+  hypr_keyword unbind SUPER,j
+  hypr_keyword unbind SUPER,k
+  hypr_keyword bind SUPER,j,cyclenext
+  hypr_keyword bind SUPER,k,cyclenext,prev
+  hypr_keyword unbind SUPER,left
+  hypr_keyword unbind SUPER,right
+  hypr_keyword unbind SUPER,up
+  hypr_keyword unbind SUPER,down
+  hypr_keyword unbind SUPER,O
+
+  case "$target" in
+  "dwindle")
+    hypr_keyword bind SUPER,left,cyclenext,prev
+    hypr_keyword bind SUPER,up,cyclenext,prev
+    hypr_keyword bind SUPER,right,cyclenext
+    hypr_keyword bind SUPER,down,cyclenext
+    hypr_keyword bind SUPER,O,layoutmsg,togglesplit
+    ;;
+  "scrolling")
+    hypr_keyword bind SUPER,left,cyclenext,prev
+    hypr_keyword bind SUPER,up,cyclenext,prev
+    hypr_keyword bind SUPER,right,cyclenext
+    hypr_keyword bind SUPER,down,cyclenext
+    ;;
+  "monocle")
+    hypr_keyword bind SUPER,left,layoutmsg,cycleprev
+    hypr_keyword bind SUPER,up,layoutmsg,cycleprev
+    hypr_keyword bind SUPER,right,layoutmsg,cyclenext
+    hypr_keyword bind SUPER,down,layoutmsg,cyclenext
+    ;;
+  "master")
+    hypr_keyword bind SUPER,left,movefocus,l
+    hypr_keyword bind SUPER,right,movefocus,r
+    hypr_keyword bind SUPER,up,movefocus,u
+    hypr_keyword bind SUPER,down,movefocus,d
+    ;;
+  *)
+    hypr_keyword bind SUPER,left,movefocus,l
+    hypr_keyword bind SUPER,right,movefocus,r
+    hypr_keyword bind SUPER,up,movefocus,u
+    hypr_keyword bind SUPER,down,movefocus,d
+    echo "Unknown layout: $target" >&2
+    return 1
+    ;;
+  esac
+
+  local actual
+  actual="$(get_layout)"
+  if [[ "$actual" == "$target" ]]; then
+    if [[ "$quiet_mode" -eq 0 ]]; then
+      notify-send -e -u low -i "$notif" " ${actual^} Layout"
+    fi
+  else
+    if [[ "$quiet_mode" -eq 0 ]]; then
+      notify-send -e -u critical -i "$notif" " Layout switch failed: still ${actual}"
+    fi
+    return 1
+  fi
+}
+
+if [[ "${1:-}" == "--quiet" || "${1:-}" == "--no-notify" ]]; then
+  quiet_mode=1
+  shift
+fi
+
+current="$(get_layout)"
+arg="${1:-toggle}"
+
+case "$arg" in
+init)
+  set_layout "$current"
+  ;;
+toggle|next)
+  set_layout "$(next_layout "$current")"
+  ;;
+master|dwindle|scrolling|monocle)
+  set_layout "$arg"
+  ;;
+*)
+  echo "Usage: $(basename "$0") [--quiet|--no-notify] [toggle|next|init|master|dwindle|scrolling|monocle]" >&2
+  exit 1
+  ;;
 esac

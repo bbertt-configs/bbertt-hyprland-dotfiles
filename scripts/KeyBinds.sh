@@ -1,5 +1,10 @@
 #!/usr/bin/env bash
-# /* ---- 💫 https://github.com/JaKooLit 💫 ---- */  ##
+# ==================================================
+#  KoolDots (2026)
+#  Project URL: https://github.com/LinuxBeginnings
+#  License: GNU GPLv3
+#  SPDX-License-Identifier: GPL-3.0-or-later
+# ==================================================
 # searchable enabled keybinds using rofi (supports bindd descriptions)
 
 # kill yad to not interfere with this binds
@@ -11,72 +16,56 @@ if pidof rofi > /dev/null; then
 fi
 
 # define the config files
-keybinds_conf="$HOME/.config/hypr/configs/Keybinds.conf"
-user_keybinds_conf="$HOME/.config/hypr/UserConfigs/UserKeybinds.conf"
-laptop_conf="$HOME/.config/hypr/UserConfigs/Laptops.conf"
+config_home="${XDG_CONFIG_HOME:-$HOME/.config}"
+hypr_dir="$config_home/hypr"
+keybinds_conf="$hypr_dir/configs/Keybinds.conf"
+user_keybinds_conf="$hypr_dir/UserConfigs/UserKeybinds.conf"
+laptop_conf="$hypr_dir/UserConfigs/Laptops.conf"
+lua_keybinds_conf="$hypr_dir/lua/keybinds.lua"
+lua_user_keybinds="$hypr_dir/UserConfigs/user_keybinds.lua"
+lua_system_keybinds="$hypr_dir/configs/system_keybinds.lua"
+lua_legacy_system_keybinds="$hypr_dir/UserConfigs/system_keybinds.lua"
+lua_overrides="$hypr_dir/UserConfigs/user_overrides.lua"
 rofi_theme="$HOME/.config/rofi/config-keybinds.rasi"
 msg='☣️ NOTE ☣️: Clicking with Mouse or Pressing ENTER will have NO function'
 
-# collect raw bind lines (strip end-of-line comments) from available files
-files=("$keybinds_conf" "$user_keybinds_conf")
-[[ -f "$laptop_conf" ]] && files+=("$laptop_conf")
-
-raw_keybinds=$(cat "${files[@]}" 2>/dev/null \
-  | grep -E '^[[:space:]]*bind' \
-  | sed -E 's/[[:space:]]+#.*$//')
-
-# check for any keybinds to display
-if [[ -z "$raw_keybinds" ]]; then
-    echo "no keybinds found."
-    exit 1
+# detect active Hyprland config mode (Lua entrypoint vs legacy .conf includes)
+lua_entry="$hypr_dir/hyprland.lua"
+legacy_lua_entry="$config_home/hyprland.lua"
+if [[ -f "$lua_entry" || -f "$legacy_lua_entry" ]]; then
+  hypr_config_mode="lua"
+else
+  hypr_config_mode="conf"
 fi
 
-# transform into a readable list: MODS+KEY — DESCRIPTION — DISPATCHER [PARAMS]
-display_keybinds=$(echo "$raw_keybinds" | awk -F'=' '
-  function trim(s){ gsub(/^[ \t]+|[ \t]+$/,"",s); return s }
-  /^[[:space:]]*bind/ {
-    binder=$1; gsub(/[ \t]/, "", binder);
-    hasdesc = (index(binder, "d")>0);
+# collect raw bind lines from available files
+if [[ "$hypr_config_mode" == "lua" ]]; then
+  files=("$lua_keybinds_conf")
+  if [[ -f "$lua_system_keybinds" ]]; then
+    files+=("$lua_system_keybinds")
+  elif [[ -f "$lua_legacy_system_keybinds" ]]; then
+    files+=("$lua_legacy_system_keybinds")
+  fi
+  [[ -f "$lua_user_keybinds" ]] && files+=("$lua_user_keybinds")
+  [[ -f "$lua_overrides" ]] && files+=("$lua_overrides")
+else
+  files=("$keybinds_conf" "$user_keybinds_conf")
+  [[ -f "$laptop_conf" ]] && files+=("$laptop_conf")
+fi
 
-    rhs=$2; rhs=trim(rhs);
-    n=split(rhs, a, /[ \t]*,[ \t]*/);
+# Parse binds using the python script for speed
+# The last argument must be the user config for override logic to work correctly
+display_keybinds=$("$HOME/.config/hypr/scripts/keybinds_parser.py" "${files[@]}")
 
-    mods=trim(a[1]); key=(n>=2?trim(a[2]):"");
-    desc=""; dispatcher=""; params="";
-
-    if (hasdesc) {
-      desc=(n>=3?trim(a[3]):"");
-      dispatcher=(n>=4?trim(a[4]):"");
-      start=5;
-    } else {
-      dispatcher=(n>=3?trim(a[3]):"");
-      start=4;
-    }
-
-    for(i=start;i<=n;i++){ if(length(a[i])){ p=trim(a[i]); if(p!="") params = (params?params", ":"") p } }
-
-    gsub(/\$mainMod/,"SUPER",mods);
-    gsub(/[ \t]+/,"+",mods);
-
-    combo = (mods && key) ? mods "+" key : (key?key:mods);
-
-    if (desc != "") {
-      if (dispatcher != "" && params != "")
-        print combo, " — ", desc, " — ", dispatcher, " ", params;
-      else if (dispatcher != "")
-        print combo, " — ", desc, " — ", dispatcher;
-      else
-        print combo, " — ", desc;
-    } else {
-      if (dispatcher != "" && params != "")
-        print combo, " — ", dispatcher, " ", params;
-      else if (dispatcher != "")
-        print combo, " — ", dispatcher;
-      else
-        print combo;
-    }
-  }
-')
+# Check for suggestions file created by python script
+if [[ -f "/tmp/hypr_keybind_suggestions_file" ]]; then
+  suggestions_file=$(cat "/tmp/hypr_keybind_suggestions_file")
+  rm "/tmp/hypr_keybind_suggestions_file"
+  if [[ -n "$suggestions_file" && -f "$suggestions_file" ]]; then
+     count=$(wc -l < "$suggestions_file")
+     msg="$msg | Overrides missing unbind: $count (suggestions: $suggestions_file)"
+  fi
+fi
 
 # use rofi to display the keybinds
 printf '%s\n' "$display_keybinds" | rofi -dmenu -i -config "$rofi_theme" -mesg "$msg"
