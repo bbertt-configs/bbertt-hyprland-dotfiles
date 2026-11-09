@@ -98,13 +98,13 @@ local startup_commands = {
   -- calls DisplayProfile.sh - so do NOT add DisplayProfile.sh here as well, or
   -- two controllers would apply layouts at the same time.
   "$HOME/.config/hypr/scripts/MonitorWatcher.sh",
+
   -- Input method and window switcher (ported from UserKeybinds.conf)
   "fcitx5",
   "hyprshell run",
 
-  -- BEGIN ANSIBLE MANAGED — mouseless.click autostart
-  [[sh -c 'for i in $(seq 1 30); do grep -q "mouseless keyboard" /proc/bus/input/devices && break; sleep 1; done; /home/bertrand_dw/.local/bin/mouseless-launch']],
-  -- END ANSIBLE MANAGED — mouseless.click autostart
+  -- Mouseless autostart is appended at the end of this file by the Ansible
+  -- mouseless-click role (bbertt-hyprland-automated-setup).
 }
 
 local function run_startup_commands()
@@ -127,3 +127,11 @@ end
 -- DisplayProfile.sh still honours the lid when it applies a layout (it switches
 -- the internal panel off only while an external monitor is on), so a layout
 -- applied with the lid shut does not light the panel back up.
+-- BEGIN ANSIBLE MANAGED — mouseless.click autostart
+local mouseless_click_cmd = [[sh -c 'for i in $(seq 1 30); do grep -q "mouseless keyboard" /proc/bus/input/devices && break; sleep 1; done; /home/bertrand_dw/.local/bin/mouseless-launch']]
+if hl and hl.on then
+  hl.on("hyprland.start", function() exec_once(mouseless_click_cmd) end)
+else
+  exec_once(mouseless_click_cmd)
+end
+-- END ANSIBLE MANAGED — mouseless.click autostart

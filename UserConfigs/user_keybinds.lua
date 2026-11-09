@@ -298,10 +298,5 @@ bind("SUPER CTRL", "M", dispatch("layoutmsg", "splitratio -0.1"), { description 
 bind("SUPER", "Tab", hl.dsp.group.next(), { description = "next window in group" })
 
 -- BEGIN ANSIBLE MANAGED — mouseless refresh keybind
-bind(
-	"SUPER CTRL ALT",
-	"R",
-	exec_cmd("/home/bertrand_dw/.local/bin/mouseless-refresh"),
-	{ description = "refresh mouseless layers" }
-)
+bind("SUPER CTRL ALT", "R", exec_cmd("/home/bertrand_dw/.local/bin/mouseless-refresh"), { description = "refresh mouseless layers" })
 -- END ANSIBLE MANAGED — mouseless refresh keybind
