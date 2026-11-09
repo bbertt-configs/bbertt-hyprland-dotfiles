@@ -11,7 +11,7 @@ setup_default_terminal() {
 
   # 1. Configure XFCE/Exo (Thunar's primary helper)
   # This handles "Open Terminal Here" and "Open with [CLI App]"
-  HELPER_DIR="$HOME/.config/xfce4"
+  HELPER_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/xfce4"
   mkdir -p "$HELPER_DIR"
   KITTY_PATH="$(command -v kitty 2>/dev/null || true)"
   if [ -z "$KITTY_PATH" ]; then
@@ -64,6 +64,7 @@ setup_default_terminal() {
 #
 # Shim to redirect xterm calls to kitty 
 # Resolves Open with (vim/neovim/etc) opening in xterm 
+export KITTY_CONFIG_DIRECTORY="\${KITTY_CONFIG_DIRECTORY:-\${XDG_CONFIG_HOME:-\$HOME/.config}/hypr/UserConfigs}"
 args=()
 pass_through=()
 while [ \$# -gt 0 ]; do

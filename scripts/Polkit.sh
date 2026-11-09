@@ -12,6 +12,24 @@ if pgrep -u "$UID" -f 'xfce-polkit|polkit-gnome-authentication-agent-1|polkit-kd
   exit 0
 fi
 
+# On NixOS, delegate to Polkit-NixOS.sh which locates agents in the /nix/store
+if grep -qi '^ID=nixos' /etc/os-release 2>/dev/null; then
+  if [ -x "$(dirname "$0")/Polkit-NixOS.sh" ]; then
+    exec "$(dirname "$0")/Polkit-NixOS.sh"
+  fi
+fi
+
+# If hyprpolkitagent is managed as a user service, defer to systemd.
+# This avoids race conditions where both this script and systemd start an
+# agent at the same time, which can trigger "authentication agent already exists"
+# DBus registration errors on first login.
+if command -v systemctl >/dev/null 2>&1; then
+  if systemctl --user list-unit-files 2>/dev/null | grep -q '^hyprpolkitagent\.service'; then
+    systemctl --user start hyprpolkitagent.service >/dev/null 2>&1 || true
+    exit 0
+  fi
+fi
+
 # Ensure Qt apps default to Wayland in a Wayland session
 if [ -n "${WAYLAND_DISPLAY:-}" ] && [ -z "${QT_QPA_PLATFORM:-}" ]; then
   export QT_QPA_PLATFORM=wayland
@@ -25,7 +43,25 @@ fi
 # Check if kvantum is specified globally but the QML module is missing
 if [[ "${QT_STYLE_OVERRIDE:-}" == "kvantum" ]] || [[ "${QT_STYLE_OVERRIDE:-}" == "kvantum-dark" ]]; then
   # Check common Qt5/Qt6 QML directories for the Kvantum module
-  if ! find /usr/lib /usr/lib64 /usr/share -type d -path "*/qml/*/kvantum" -print -quit 2>/dev/null | grep -q .; then
+  # NOTE: script scope, not a function -> plain assignment (no `local`).
+  # Using `local` here fails with "local: can only be used in a function",
+  # leaving has_kvantum empty and skipping the Fusion fallback below.
+  has_kvantum=0
+  # These paths are optional, so an unmatched glob must expand to nothing
+  # rather than abort the script (zsh `nomatch`, bash `failglob`).
+  if [ -n "${ZSH_VERSION:-}" ]; then
+    setopt null_glob 2>/dev/null || true
+  else
+    shopt -s nullglob 2>/dev/null || true
+  fi
+  for d in /usr/lib*/qt*/qml /usr/lib*/*-linux-gnu/qt*/qml /usr/lib*/qml /usr/share/qt*/qml /usr/share/qml; do
+    [ -d "$d" ] || continue
+    if [ -d "$d/kvantum" ] || [ -d "$d/org/kde/kvantum" ]; then
+      has_kvantum=1
+      break
+    fi
+  done
+  if [ "$has_kvantum" -eq 0 ]; then
     echo "Kvantum QML module not found. Overriding QT_STYLE_OVERRIDE for Polkit to prevent crash."
     export QT_STYLE_OVERRIDE=Fusion
   fi

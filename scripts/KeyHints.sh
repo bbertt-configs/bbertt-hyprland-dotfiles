@@ -58,11 +58,15 @@ GDK_BACKEND=$BACKEND yad \
   " CTRL SHIFT Print" "screenshot timer 10 secs " "(grim)" \
   "ALT Print" "Screenshot active window" "active window only" \
   "CTRL ALT P" "power-menu" "(wlogout)" \
+  " CTRL W" "wlogout theme selector" "(wlogout themes)" \
+  " CTRL SHIFT W" "wlogout wallpaper selector" "(wlogout background)" \
+  "CTRL ALT D" "Toggle dock" "(nwg-dock-hyprland)" \
   "CTRL ALT L" "screen lock" "(hyprlock)" \
   "CTRL ALT Del" "Hyprland Exit" "(NOTE: Hyprland Will exit immediately)" \
+  "CTRL ALT + / -" "Brightness Up / Down" "Increase/Decrease brightness" \
   " SHIFT F" "Fullscreen" "Toggles to full screen" \
-  " CTL F" "Fake Fullscreen" "Toggles to fake full screen" \
-  " ALT L" "Toggle Dwindle|Floating|Monocle|Master layouts" "Hyprland Layouts" \
+  " F" "Fake Fullscreen" "Toggles to fake full screen" \
+  " ALT L" "Toggle Dwindle|Scrolling|Monocle|Master layouts" "Active workspace layout" \
   " SPACEBAR" "Toggle float" "single window" \
   " ALT SPACEBAR" "Toggle all windows to float" "all windows" \
   " ALT O" "Toggle Blur" "normal or less blur" \
